@@ -258,19 +258,20 @@ const stc=s=>{const d=document.documentElement.dataset.theme==="dark",v=s||"";
 if(/^(on-track|Green|Done|Completed)$/.test(v))return d?"#3fb950":"#1a7f37";
 if(/attention|Amber|At Risk|Medium/.test(v))return d?"#d29922":"#9a6700";
 if(/off-track|Delayed|Red/.test(v))return d?"#f85149":"#cf222e";return TH().tgt;};
-function hbars(cv,items,o){o=o||{};if(!cv)return;const n=items.length,H=n*24+10,[c,W]=setup(cv,H);c.clearRect(0,0,W,H);
+function hbars(cv,items,o){o=o||{};if(!cv)return;const n=items.length,RH=30,H=n*RH+12,[c,W]=setup(cv,H);c.clearRect(0,0,W,H);
 if(!n){c.fillStyle=TH().t;c.fillText("No data",10,20);return;}
 const vals=items.map(i=>i.value),lo=Math.min(0,...vals),mx0=Math.max(0,...vals.concat([o.ref||0])),hi=mx0===lo?lo+1:mx0*1.08;
-const LW=148,RW=58,X=v=>LW+(v-lo)/(hi-lo)*(W-LW-RW);
-c.font="11px sans-serif";
-items.forEach((it,i)=>{const y=i*24+4,x0=X(0),x1=X(it.value);
-const lb=it.label.length>24?it.label.slice(0,23)+"…":it.label;c.fillStyle=TH().t2;c.fillText(lb,4,y+12);
-c.fillStyle=it.color;const bx=Math.min(x0,x1);c.fillRect(bx,y+1,Math.max(2,Math.abs(x1-x0)),12);
-const t=(Math.round(it.value*10)/10)+o.suffix;c.fillStyle=TH().t;
-c.fillText(t,x1>=x0?x1+5:bx-5-c.measureText(t).width,y+12);});
+const LW=168,RW=64,X=v=>LW+(v-lo)/(hi-lo)*(W-LW-RW);
+c.font="12px sans-serif";
+items.forEach((it,i)=>{const y=i*RH+5,x0=X(0),x1=X(it.value);
+c.strokeStyle=TH().grid;c.globalAlpha=.4;c.beginPath();c.moveTo(0,y+RH-6);c.lineTo(W,y+RH-6);c.stroke();c.globalAlpha=1;
+const lb=it.label.length>26?it.label.slice(0,25)+"…":it.label;c.fillStyle=TH().t2;c.fillText(lb,4,y+15);
+c.fillStyle=it.color;const bx=Math.min(x0,x1);c.fillRect(bx,y,Math.max(2,Math.abs(x1-x0)),14);
+const t=(Math.round(it.value*10)/10)+o.suffix,w=c.measureText(t).width;c.fillStyle=TH().t;
+let vx=x1>=x0?x1+6:x0+6;if(vx+w>W-2)vx=(x1>=x0?x1:x0)-6-w;c.fillText(t,vx,y+15);});
 c.strokeStyle=TH().grid;c.beginPath();c.moveTo(X(0),2);c.lineTo(X(0),H-2);c.stroke();
 if(o.ref){const rx=X(o.ref);c.setLineDash([4,3]);c.beginPath();c.moveTo(rx,2);c.lineTo(rx,H-2);c.stroke();c.setLineDash([]);
-c.fillStyle=TH().t;c.fillText("target "+o.ref+o.suffix,rx+4,12);}}
+c.fillStyle=TH().t;c.fillText("target "+o.ref+o.suffix,rx+5,14);}}
 
 /* ---------- focus + pomodoro + search ---------- */
 let FT={t:null,left:1500,dist:0,task:""};
