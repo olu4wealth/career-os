@@ -298,6 +298,9 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._json(dashboard(con))
             if parts[1] == "export":
                 return self._export(con, qs.get("table", ["kpis"])[0])
+            if parts[1] == "backup":
+                return self._json({t: [dict(r) for r in con.execute(f'SELECT * FROM "{t}"')]
+                                   for t in SCHEMA})
             table = parts[1]
             if table not in SCHEMA or table == "settings":
                 if table == "settings":
@@ -324,6 +327,13 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._award(con, data)
             if parts[1:2] == ["import"]:
                 return self._import(con, data)
+            if parts[1:2] == ["reset"]:
+                for t in SCHEMA:
+                    con.execute(f'DROP TABLE IF EXISTS "{t}"')
+                con.commit()
+                con.close()
+                init_db()
+                return self._json({"ok": True, "reseeded": True})
             table = parts[1]
             if table not in SCHEMA:
                 return self._json({"error": "unknown table"}, HTTPStatus.NOT_FOUND)

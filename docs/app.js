@@ -33,6 +33,10 @@ $$("#nav button").forEach(b=>b.onclick=()=>go(b.dataset.r));}
 function renderLvl(){const x=S.xp;$("#lvlbox").innerHTML=`LEVEL <b>${x.level}</b> · <b>${x.total}</b> XP<br><span style="color:#8b949e">+${x.week} this week · ${x.streak}d streak · next Lv at ${x.next_at}</span>`;}
 async function load(){try{const[dg,st]=await Promise.all([api("GET","/api/dashboard"),api("GET","/api/settings").catch(()=>({}))]);S.D=dg;S.xp=dg.xp;S.settings=st;
 for(const t of Object.keys(F)){try{S.T[t]=await api("GET","/api/"+t);}catch(e){S.T[t]=[];}}}catch(e){MODE="local";await localBoot();setTimeout(()=>toast("Demo mode — your data stays in this browser."),400);}}
+async function fullBackup(){try{const d=await GET("/api/backup");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(d)],{type:"application/json"}));a.download="career-os-backup-"+today()+".json";a.click();try{localStorage.setItem("cos-backup",today());}catch(e){}toast("Backup downloaded. Store it somewhere safe.");render();}catch(e){toast("Backup failed: "+e.message);}}
+async function resetDemo(){if(!confirm("Reset ALL data to fresh demo data? Your entries will be lost — download a backup first."))return;
+if(MODE==="api"){try{await POST("/api/reset",{});await load();renderNav();render();toast("Fresh demo data loaded.");}catch(e){toast("Reset failed: "+e.message);}}
+else{try{localStorage.removeItem(LS);}catch(e){}location.reload();}}
 function go(r){S.route=r;renderNav();render();}
 function pill(v){return `<span class="pill ${esc(String(v).replace(/ /g,"."))}">${esc(v||"—")}</span>`;}
 function num(v){const n=Number(v);return isFinite(n)?n.toLocaleString():"—";}
@@ -68,10 +72,11 @@ const lv=Math.floor(tot/200)+1;
 return{kpis,alerts:alerts.slice(0,12),overdue:od,open_tasks:due.length,xp:{total:tot,week:wk,level:lv,next_at:lv*200,streak:st},done_week:(S.T.tasks||[]).filter(t=>t.status==="Done"&&inWeek(t.date,N)).length,date:N};}
 const path=t=>new URL(t,location.origin).pathname.split("/").filter(Boolean)[1];
 async function LGET(p){const u=new URL(p,location.origin),t=u.pathname.split("/").filter(Boolean)[1];
-if(t==="dashboard")return buildDash();if(t==="settings")return S.settings;
+if(t==="dashboard")return buildDash();if(t==="settings")return S.settings;if(t==="backup")return{tables:S.T,settings:S.settings};
 let rows=[...(S.T[t]||[])];const s=(u.searchParams.get("q")||"").toLowerCase();
 return s?rows.filter(r=>JSON.stringify(r).toLowerCase().includes(s)):rows;}
 async function LPOST(p,b){const t=path(p);
+if(t==="reset"){try{localStorage.removeItem(LS);}catch(e){}location.reload();return{ok:true};}
 if(t==="award"){const o={id:lid("xp"),date:today(),achievement:b.achievement||"Work output",category:b.category||"General",base:+b.base||0,mult:+b.mult||1,bonus:+b.bonus||0,notes:b.notes||""};o.total=o.base*o.mult+o.bonus;S.T.xp.unshift(o);sync();return S.xp;}
 if(t==="import"){let n=0;for(const r of(b.rows||[]).slice(0,500)){const o={id:lid(b.table)};for(const k of Object.keys(F[b.table].fields))o[k]=r[k]??"";if(!Object.values(o).join("").trim())continue;if(F[b.table].fields.date&&!o.date)o.date=today();S.T[b.table].push(o);n++;}sync();return{imported:n};}
 if(t==="settings"){for(const[k,v]of Object.entries(b))S.settings[k]=typeof v==="string"?v:JSON.stringify(v);sync();return{ok:true};}
@@ -123,10 +128,11 @@ try{const r=await POST("/api/import",{table:S._imp,rows});await load();render();
 
 /* ---------- views ---------- */
 function vCommand(){const d=S.D,k=d.kpis||[];const bf=S.settings.boss_fight||"—";let pr=[];try{pr=JSON.parse(S.settings.priorities||"[]");}catch(e){}
+let bn="";try{const lb=localStorage.getItem("cos-backup");if(!lb||(Date.now()-new Date(lb+"T12:00"))>7*864e5)bn=`<div class="alert"><b>No backup in 7+ days.</b> Your data lives ${MODE==="api"?"in a local database file":"in this browser"} — <button class="btn sm ghost" onclick="fullBackup()">Download backup</button></div>`;}catch(e){}
 const card=(l,v,s)=>`<div class="stat"><h3>${l}</h3><div class="kpi-num mono">${v}</div><div class="kpi-sub">${s||""}</div></div>`;
 const g=k.find(x=>/gross written/i.test(x.metric))||k[0]||{};
 return `<div class="top"><h1>Command Centre</h1><span class="date">${esc(d.date)} — what matters today, in 30 seconds</span></div>
-<div class="boss"><small>Today's boss fight</small><div class="t">${esc(bf)}</div><div style="margin-top:8px"><button class="btn sm" onclick="go('daily')">Open in Daily OS</button></div></div>
+${bn}<div class="boss"><small>Today's boss fight</small><div class="t">${esc(bf)}</div><div style="margin-top:8px"><button class="btn sm" onclick="go('daily')">Open in Daily OS</button></div></div>
 <div class="grid g4">${card("Gross premium",num(g.actual)+((g.metric||"").includes("bn")?"bn":""),`target ${num(g.target)} · ${g.variance_pct??"—"}%`)}
 ${card("Target achievement",(((k.find(x=>/achievement/i.test(x.metric))||{}).actual??"—"))+"%","vs 100%")}
 ${card("YoY growth",((k.find(x=>/yoy/i.test(x.metric))||{}).actual??"—")+"%","target 15%")}
@@ -221,7 +227,7 @@ function vSettings(){return `<div class="top"><h1>Settings</h1></div><div class=
 <div style="margin-top:8px"><button class="btn sm" onclick="saveSettings()">Save</button></div></div>
 <div class="card"><h3>Data</h3><div class="small mut">Workbook parity: each module exports / imports CSV with the same columns as the Excel sheets (KPI Cockpit, Strategic Tracker, …). Excel import: save the sheet as CSV, then import here.</div>
 <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">${Object.keys(F).map(t=>`<button class="btn sm ghost" onclick="expCSV('${t}')">↓ ${t}</button>`).join("")}</div>
-<div class="small mut">Fresh demo data: stop the server, delete career_os.db, restart.</div></div></div>`;}
+<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn sm ghost" onclick="fullBackup()">Download full backup</button><button class="btn sm danger" onclick="resetDemo()">Reset demo data</button></div></div></div>`;}
 async function saveSettings(){const pr=$("#spr").value.split("\n").map(s=>s.trim()).filter(Boolean).slice(0,3);
 await POST("/api/settings",{boss_fight:$("#sbf").value,priorities:pr});S.settings.boss_fight=$("#sbf").value;S.settings.priorities=JSON.stringify(pr);toast("Saved.");render();}
 
