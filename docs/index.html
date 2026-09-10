@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f4f5f7">
 <title>Career OS — Future, Growth &amp; Monitoring</title>
 <style>
 :root{--bg:#f4f5f7;--panel:#fff;--ink:#1a1d21;--mut:#67707a;--line:#e3e6ea;
@@ -29,7 +30,14 @@ input:focus,select:focus,textarea:focus{outline:2px solid #b6d3fb;border-color:v
 .grid{display:grid;gap:12px}.g4{grid-template-columns:repeat(4,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.g2{grid-template-columns:repeat(2,1fr)}
 @media(max-width:1100px){.g4{grid-template-columns:repeat(2,1fr)}.g3,.g2{grid-template-columns:1fr}}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:13px 14px;min-width:0}
-.card h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--mut)}
+.card h3{margin:0 0 8px;font-size:12.5px;font-weight:600;letter-spacing:0;color:var(--mut)}
+.stat{background:transparent;border:0;border-top:2px solid var(--ink);border-radius:0;padding:10px 2px;box-shadow:none}
+h1,h3{text-wrap:balance}
+button{touch-action:manipulation}
+#modal,#search{overscroll-behavior:contain}
+.skip{position:absolute;left:-9999px;top:0;background:var(--acc);color:#fff;padding:8px 14px;z-index:99;border-radius:0 0 8px 0}
+.skip:focus{left:0}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
 .kpi-num{font-size:22px;font-weight:700}.kpi-sub{font-size:12px;color:var(--mut)}
 .pill{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11.5px;font-weight:600}
 .pill.on-track,.pill.Green,.pill.Done,.pill.Completed,.pill.High{background:#ddf4e3;color:var(--ok)}
@@ -67,23 +75,59 @@ footer.foot{color:var(--mut);font-size:11.5px;margin-top:26px}
 kbd{background:#eef;border:1px solid var(--line);border-radius:5px;padding:0 6px;font-size:11.5px}
 @media(max-width:860px){aside{width:60px}aside .brand small,nav button span.t,#lvlbox{display:none}main{padding:14px}}
 </style>
+<style>
+/* polish + dark mode (overrides; later source order wins at equal specificity) */
+:root{--shadow:0 1px 2px rgba(16,24,40,.07);--radius:12px;color-scheme:light}
+[data-theme="dark"]{color-scheme:dark;--bg:#0d1117;--panel:#161b22;--ink:#e6edf3;--mut:#8b949e;--line:#30363d;
+--acc:#4493f8;--ok:#3fb950;--warn:#d29922;--bad:#f85149;--side:#010409;--side2:#161b22;--shadow:none}
+body{transition:background .2s,color .2s}
+main{max-width:1240px}
+.top h1{letter-spacing:-.3px}
+.card,.mx,.alert,.sheet,#search .box{background:var(--panel)}
+.card{border-radius:var(--radius);box-shadow:var(--shadow)}
+.kpi-num{letter-spacing:-.5px}
+.boss{border:1px solid #2a3138;border-left:4px solid var(--acc);border-radius:var(--radius)}
+nav button.on{box-shadow:inset 2px 0 0 var(--acc)}
+.btn:hover{filter:brightness(.93)}.btn.ghost:hover{background:#eceff2}
+.btn{transition:filter .12s}
+tbody tr{transition:background .12s}
+th{position:sticky;top:0;background:var(--panel);z-index:1}
+input,select,textarea{background:var(--panel);color:var(--ink);transition:border-color .12s,box-shadow .12s}
+:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+.tbtn{width:100%;background:var(--side2);color:#cfd6dd;border:1px solid #30363d;border-radius:7px;padding:7px;cursor:pointer;font-size:12.5px}
+.tbtn:hover{border-color:var(--acc)}
+#sres div:hover{background:#e8f0fe}
+kbd{background:#eef}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#b6bdc5;border-radius:99px;border:2px solid var(--bg)}
+[data-theme="dark"] tr:hover td{background:#1c2128}
+[data-theme="dark"] .btn.ghost{background:#21262d;color:var(--ink)}
+[data-theme="dark"] .btn.ghost:hover{background:#2d333b}
+[data-theme="dark"] .boss{background:#010409;border-color:#30363d;border-left-color:var(--acc)}
+[data-theme="dark"] nav button.on{background:#161b22}
+[data-theme="dark"] #sres div:hover{background:#1f6feb44}
+[data-theme="dark"] kbd{background:#21262d;color:var(--ink)}
+[data-theme="dark"] ::-webkit-scrollbar-thumb{background:#484f58}
+</style>
+<script>try{document.documentElement.dataset.theme=localStorage.getItem("cos-theme")||"light"}catch(e){}</script>
 </head>
 <body>
+<a class="skip" href="#view">Skip to content</a>
 <div id="app">
 <aside>
   <div class="brand">CAREER OS<small>Future · Growth · Monitoring</small></div>
   <nav id="nav"></nav>
   <div id="lvlbox"></div>
+  <div style="padding:0 10px 12px"><button id="themebtn" class="tbtn">◑ Dark</button></div>
 </aside>
 <main>
   <div id="view"></div>
-  <footer class="foot">Demo figures are illustrative, not company data · <kbd>Ctrl K</kbd> search · your entries are saved in this browser</footer>
+  <footer class="foot">Demo figures are illustrative, not company data. Press Ctrl K to search. Your entries stay in this browser.</footer>
 </main>
 </div>
 <div id="modal"><div class="sheet" id="sheet"></div></div>
-<div id="search"><div class="box"><input id="sin" placeholder="Search KPIs, insights, initiatives, opportunities, intel… (Esc to close)"><div id="sres"></div></div></div>
+<div id="search"><div class="box"><input id="sin" aria-label="Search everything" autocomplete="off" placeholder="Search KPIs, insights, initiatives, opportunities, intel… (Esc to close)"><div id="sres"></div></div></div>
 <div id="focus"><div><div class="small" style="color:#9aa4ae">FOCUS MODE — <span id="ftask"></span></div><div class="timer" id="ftimer">25:00</div><div class="small">distractions: <b id="fdist">0</b></div><div style="margin-top:14px;display:flex;gap:8px;justify-content:center"><button class="btn sm" id="fstart">Start</button><button class="btn sm ghost" id="fdistbtn" style="color:#fff;border-color:#444;background:#222">+ Distraction</button><button class="btn sm ghost" id="fdone" style="color:#fff;border-color:#444;background:#222">Complete (+XP)</button><button class="btn sm ghost" id="fexit" style="color:#fff;border-color:#444;background:#222">Exit</button></div></div></div>
-<div id="toast"></div>
+<div id="toast" aria-live="polite"></div>
 <input type="file" id="csvfile" accept=".csv" style="display:none">
 <script src="app.js"></script>
 </body>

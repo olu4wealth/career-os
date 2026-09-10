@@ -7,6 +7,8 @@ async function api(m,p,b){const r=await fetch(p,{method:m,headers:{"Content-Type
 let MODE="api";
 const GET=p=>MODE==="api"?api("GET",p):LGET(p),POST=(p,b)=>MODE==="api"?api("POST",p,b):LPOST(p,b),PUT=(p,b)=>MODE==="api"?api("PUT",p,b):LPUT(p,b),DEL=p=>MODE==="api"?api("DELETE",p):LDEL(p);
 function toast(m){const d=document.createElement("div");d.textContent=m;$("#toast").append(d);setTimeout(()=>d.remove(),3200);}
+const TH=()=>document.documentElement.dataset.theme==="dark"?{t:"#8b949e",t2:"#e6edf3",grid:"#30363d",tgt:"#6e7681"}:{t:"#67707a",t2:"#333",grid:"#ccc",tgt:"#c9d4de"};
+function setTheme(t){document.documentElement.dataset.theme=t;const mc=document.querySelector('meta[name="theme-color"]');if(mc)mc.content=t==="dark"?"#0d1117":"#f4f5f7";try{localStorage.setItem("cos-theme",t);}catch(e){}const b=$("#themebtn");if(b)b.textContent=t==="dark"?"◐ Light":"◑ Dark";if(S.D.kpis)render();}
 async function award(ach,base,cat,notes){try{const x=await POST("/api/award",{achievement:ach,base,category:cat||"General",notes:notes||""});S.xp=x;renderLvl();toast(`+${base} XP — ${ach} (Lv ${x.level})`);}catch(e){toast("XP failed: "+e.message);}}
 
 /* ---------- field schemas: key -> [label, type, options] ---------- */
@@ -79,12 +81,12 @@ if(r){Object.assign(r,b);if(ps[1]==="xp")r.total=xpt(r);sync();}return r||{ok:tr
 async function LDEL(p){const ps=new URL(p,location.origin).pathname.split("/").filter(Boolean);S.T[ps[1]]=(S.T[ps[1]]||[]).filter(x=>String(x.id)!==ps[2]);sync();return{ok:true};}
 
 /* ---------- generic table + form ---------- */
-function toolbar(t,extra){return `<div class="toolbar"><input id="fq" placeholder="Filter…" value="${esc(S.q[t]||"")}" oninput="S.q['${t}']=this.value;paintRows('${t}')">
+function toolbar(t,extra){return `<div class="toolbar"><input id="fq" aria-label="Filter rows" placeholder="Filter…" value="${esc(S.q[t]||"")}" oninput="S.q['${t}']=this.value;paintRows('${t}')">
 <button class="btn sm" onclick="openForm('${t}')">+ Add</button>
 <button class="btn sm ghost" onclick="expCSV('${t}')">Export CSV</button>${extra||""}</div>`;}
 function rowMatch(t,r){const q=(S.q[t]||"").toLowerCase();return !q||JSON.stringify(r).toLowerCase().includes(q);}
 function paintRows(t){const tb=$("#rows");if(!tb)return;const c=F[t];const rows=(S.T[t]||[]).filter(r=>rowMatch(t,r));
-tb.innerHTML=rows.length?rows.map(r=>`<tr onclick="openForm('${t}',${r.id})">${c.cols.map(k=>{let v=r[k];
+tb.innerHTML=rows.length?rows.map(r=>`<tr tabindex="0" data-kb onclick="openForm('${t}',${r.id})">${c.cols.map(k=>{let v=r[k];
 if(k==="variance_pct"&&r.actual!=null&&r.target!=null){const a=+r.actual,tg=+r.target;v=tg?(((a-tg)/tg*100).toFixed(1)+"%"):"—";}
 if(["status","risk","priority","value","feasibility","fit","outcome"].includes(k))return `<td>${pill(v)}</td>`;
 return `<td>${esc(v??"—")}</td>`;}).join("")}</tr>`).join(""):`<tr><td colspan="9"><div class="empty">No records. Click + Add — or import a CSV from Settings.</div></td></tr>`;}
@@ -98,7 +100,7 @@ if(ty==="textarea")inp=`<textarea name="${k}" rows="2">${esc(v)}</textarea>`;
 else if(ty==="select")inp=`<select name="${k}">${op.map(o=>`<option ${String(v)===o?"selected":""}>${o}</option>`).join("")}</select>`;
 else inp=`<input name="${k}" type="${ty==="number"?"number":"text"}" value="${esc(v)}">`;
 const half=["date","priority","status","level","target","value","feasibility","fit","risk","mult","bonus","base","hrs"].includes(k);
-return `<div ${half?'style="display:inline-block;width:49%;vertical-align:top;margin-right:1%"':""}><label>${l}</label>${inp}</div>`;}).join("")}
+return `<div ${half?'style="display:inline-block;width:49%;vertical-align:top;margin-right:1%"':""}><label>${l}${inp}</label></div>`;}).join("")}
 <div style="margin-top:14px;display:flex;gap:8px"><button class="btn" onclick="saveForm('${t}',${id||"null"})">Save</button>
 ${id?`<button class="btn danger" onclick="delRow('${t}',${id})">Delete</button>`:""}
 <button class="btn ghost" onclick="closeModal()">Cancel</button></div>`;
@@ -121,10 +123,10 @@ try{const r=await POST("/api/import",{table:S._imp,rows});await load();render();
 
 /* ---------- views ---------- */
 function vCommand(){const d=S.D,k=d.kpis||[];const bf=S.settings.boss_fight||"—";let pr=[];try{pr=JSON.parse(S.settings.priorities||"[]");}catch(e){}
-const card=(l,v,s)=>`<div class="card"><h3>${l}</h3><div class="kpi-num mono">${v}</div><div class="kpi-sub">${s||""}</div></div>`;
+const card=(l,v,s)=>`<div class="stat"><h3>${l}</h3><div class="kpi-num mono">${v}</div><div class="kpi-sub">${s||""}</div></div>`;
 const g=k.find(x=>/gross written/i.test(x.metric))||k[0]||{};
 return `<div class="top"><h1>Command Centre</h1><span class="date">${esc(d.date)} — what matters today, in 30 seconds</span></div>
-<div class="boss"><small>TODAY'S BOSS FIGHT</small><div class="t">${esc(bf)}</div><div style="margin-top:8px"><button class="btn sm" onclick="go('daily')">Open in Daily OS</button></div></div>
+<div class="boss"><small>Today's boss fight</small><div class="t">${esc(bf)}</div><div style="margin-top:8px"><button class="btn sm" onclick="go('daily')">Open in Daily OS</button></div></div>
 <div class="grid g4">${card("Gross premium",num(g.actual)+((g.metric||"").includes("bn")?"bn":""),`target ${num(g.target)} · ${g.variance_pct??"—"}%`)}
 ${card("Target achievement",(((k.find(x=>/achievement/i.test(x.metric))||{}).actual??"—"))+"%","vs 100%")}
 ${card("YoY growth",((k.find(x=>/yoy/i.test(x.metric))||{}).actual??"—")+"%","target 15%")}
@@ -139,10 +141,10 @@ ${card("XP this week","+"+S.xp.week,`Lv ${S.xp.level} · ${S.xp.streak}d streak`
 function vDaily(){const ts=(S.T.tasks||[]).filter(t=>t.date===today());const boss=ts.find(t=>t.is_boss==="1")||ts[0];
 return `<div class="top"><h1>Daily OS</h1><span class="date">${today()} — outcomes, not to-dos</span><span class="sp"></span>
 <button class="btn ghost sm" onclick="openFocus()">◎ Focus mode</button><button class="btn sm" onclick="openForm('tasks')">+ Add outcome</button></div>
-<div class="boss"><small>TODAY'S BOSS FIGHT</small><div class="t">${esc(S.settings.boss_fight||boss?.title||"Set one high-value outcome in Settings.")}</div></div>
+<div class="boss"><small>Today's boss fight</small><div class="t">${esc(S.settings.boss_fight||boss?.title||"Set one high-value outcome in Settings.")}</div></div>
 <div class="card"><h3>Today's outcomes (${ts.filter(t=>t.status==="Done").length}/${ts.length} done)</h3>
 <table><thead><tr><th>Outcome</th><th>Cat</th><th>Pri</th><th>Effort</th><th>Status</th><th>XP</th><th></th></tr></thead><tbody>
-${ts.map(t=>`<tr onclick="openForm('tasks',${t.id})"><td><b>${esc(t.title)}</b>${t.is_boss==="1"?' <span class="pill High">BOSS</span>':""}<br><span class="mut small">${esc(t.output||"")}</span></td><td>${esc(t.category||"")}</td><td>${esc(t.priority||"")}</td><td>${esc(t.effort||"")}</td><td>${pill(t.status)}</td><td class="mono">+${esc(t.xp_reward||0)}</td>
+${ts.map(t=>`<tr tabindex="0" data-kb onclick="openForm('tasks',${t.id})"><td><b>${esc(t.title)}</b>${t.is_boss==="1"?' <span class="pill High">BOSS</span>':""}<br><span class="mut small">${esc(t.output||"")}</span></td><td>${esc(t.category||"")}</td><td>${esc(t.priority||"")}</td><td>${esc(t.effort||"")}</td><td>${pill(t.status)}</td><td class="mono">+${esc(t.xp_reward||0)}</td>
 <td><button class="btn sm ghost" onclick="event.stopPropagation();doneTask(${t.id})">Done</button></td></tr>`).join("")||'<tr><td colspan="7"><div class="empty">Nothing planned. Add your Boss Fight + top 3 outcomes.</div></td></tr>'}</tbody></table></div>
 <div class="grid g2" style="margin-top:12px"><div class="card"><h3>Operating rhythm</h3>
 ${[["08:00–08:15","Intelligence scan","3–5 signals captured"],["08:15–10:15","Deep work","one tangible output"],["10:30–12:00","Reporting / analysis","numbers checked twice"],["12:00–14:00","Meetings / recharge","actions captured"],["14:00–15:30","Strategic work","1 insight or opportunity"],["15:30–16:30","Close loop","tracker + tomorrow's fight"]].map(r=>`<div>● <b>${r[0]}</b> ${r[1]} <span class="mut">→ ${r[2]}</span></div>`).join("")}</div>
@@ -154,7 +156,7 @@ const r=await PUT(`/api/tasks/${id}`,{status:"Done"});S.T.tasks=S.T.tasks.map(x=
 await award(t.is_boss==="1"?"Boss fight complete: "+t.title:"Completed: "+t.title,+(t.xp_reward||10),"Execution");render();}
 
 function vKPIs(){return `<div class="top"><h1>KPI Cockpit</h1><span class="date">actual · target · variance · driver → implication → action</span><span class="sp"></span>
-<button class="btn ghost sm" onclick="openInsight()">＋ Insight builder</button><button class="btn sm" onclick="openForm('kpis')">+ Add KPI</button></div>
+<button class="btn ghost sm" onclick="openInsight()">+ Insight builder</button><button class="btn sm" onclick="openForm('kpis')">+ Add KPI</button></div>
 <div class="grid g2"><div class="card"><h3>Actual vs target</h3><canvas class="chart" id="chK"></canvas></div>
 <div class="card"><h3>Variance % (red = off track)</h3><canvas class="chart" id="chV"></canvas></div></div>
 ${toolbar("kpis")}<div class="card" style="padding:4px 8px;overflow:auto"><table><thead><tr>
@@ -174,33 +176,33 @@ driver:g("driver"),implication:g("matter"),recommendation:g("do"),action:`${g("w
 S.T.insights=await GET("/api/insights");closeModal();await award("Found material business insight",25,"Analysis");go("insights");}
 
 function vOpp(){const os=(S.T.opportunities||[]).filter(o=>o.status!=="Rejected");
-const cell=(v,f)=>`<div class="mx"><h4>${v} value × ${f} feasibility</h4>${os.filter(o=>o.value===v&&o.feasibility===f).map(o=>`<div onclick="openForm('opportunities',${o.id})" style="cursor:pointer">● <b>${esc(o.title)}</b> <span class="mut">${esc(o.status||"")}</span></div>`).join("")||'<div class="mut">—</div>'}</div>`;
+const cell=(v,f)=>`<div class="mx"><h4>${v} value × ${f} feasibility</h4>${os.filter(o=>o.value===v&&o.feasibility===f).map(o=>`<div tabindex="0" data-kb onclick="openForm('opportunities',${o.id})" style="cursor:pointer">● <b>${esc(o.title)}</b> <span class="mut">${esc(o.status||"")}</span></div>`).join("")||'<div class="mut">—</div>'}</div>`;
 return `<div class="top"><h1>Opportunity Radar</h1><span class="date">evidence first — interesting ≠ viable</span><span class="sp"></span><button class="btn sm" onclick="openForm('opportunities')">+ Add opportunity</button></div>
 <div class="matrix">${cell("High","High")}${cell("High","Low")}${cell("Low","High")}${cell("Low","Low")}</div>
 <div style="margin-top:12px">${toolbar("opportunities")}<div class="card" style="padding:4px 8px;overflow:auto"><table><thead><tr><th>Title</th><th>Value</th><th>Feas.</th><th>Fit</th><th>Stage</th><th>Owner</th></tr></thead><tbody id="rows"></tbody></table></div></div>`;}
 
 function vWeekly(){const revs=S.T.reviews||[];const d=S.D;
 return `<div class="top"><h1>Weekly Review</h1><span class="date">Friday — business + self</span><span class="sp"></span><button class="btn sm" onclick="openForm('reviews')">+ New review</button></div>
-<div class="grid g4"><div class="card"><h3>XP earned</h3><div class="kpi-num mono">+${S.xp.week}</div></div>
-<div class="card"><h3>Tasks closed (7d)</h3><div class="kpi-num mono">${d.done_week}</div></div>
-<div class="card"><h3>Insights logged</h3><div class="kpi-num mono">${(S.T.insights||[]).length}</div></div>
-<div class="card"><h3>Open alerts</h3><div class="kpi-num mono">${d.alerts.length}</div></div></div>
+<div class="grid g4"><div class="stat"><h3>XP earned</h3><div class="kpi-num mono">+${S.xp.week}</div></div>
+<div class="stat"><h3>Tasks closed (7d)</h3><div class="kpi-num mono">${d.done_week}</div></div>
+<div class="stat"><h3>Insights logged</h3><div class="kpi-num mono">${(S.T.insights||[]).length}</div></div>
+<div class="stat"><h3>Open alerts</h3><div class="kpi-num mono">${d.alerts.length}</div></div></div>
 <div class="card" style="margin-top:12px"><h3>Friday check (score 1–5 each)</h3><div class="small mut">Material change spotted? Explained why? Opportunity/risk found? Initiative moved? Recommendation made? Deep work protected?</div></div>
 ${revs.map(r=>`<div class="card" style="margin-top:8px"><b>Week ending ${esc(r.week_ending)}</b> — ${esc((r.business||"").slice(0,140))}<br><span class="mut">${esc((r.recommendation||"").slice(0,140))}</span> <button class="btn sm ghost" onclick="openForm('reviews',${r.id})">Open</button></div>`).join("")||'<div class="empty">No reviews yet.</div>'}`;}
 
 function vSkills(){const sk=S.T.skills||[];const by={};sk.forEach(s=>{(by[s.domain]=by[s.domain]||[]).push(s);});
 return `<div class="top"><h1>Skill Tree</h1><span class="date">am I becoming better at this job?</span><span class="sp"></span><button class="btn sm" onclick="openForm('skills')">+ Add skill</button></div>
 ${Object.entries(by).map(([dom,arr])=>`<div class="card" style="margin-top:10px"><h3>${esc(dom)}</h3>
-${arr.map(s=>{const pc=Math.min(100,Math.round(s.level/s.target*100));return `<div onclick="openForm('skills',${s.id})" style="cursor:pointer;padding:6px 0;border-top:1px solid var(--line)"><b>${esc(s.skill)}</b> ${pill(s.status)}<br>
+${arr.map(s=>{const pc=Math.min(100,Math.round(s.level/s.target*100));return `<div tabindex="0" data-kb onclick="openForm('skills',${s.id})" style="cursor:pointer;padding:6px 0;border-top:1px solid var(--line)"><b>${esc(s.skill)}</b> ${pill(s.status)}<br>
 <div style="background:#eef;height:7px;border-radius:99px;margin:5px 0"><div style="width:${pc}%;background:var(--acc);height:7px;border-radius:99px"></div></div>
 <span class="small mut">Lv ${esc(s.level)} → ${esc(s.target)} · ${pc}% · next: ${esc(s.next_step||"—")}</span></div>`;}).join("")}</div>`).join("")||'<div class="empty">No skills.</div>'}`;}
 
 function vXP(){const rows=S.T.xp||[];let guide=[];try{guide=JSON.parse(S.settings.xp_guide||"[]");}catch(e){}
 return `<div class="top"><h1>XP &amp; Progress</h1><span class="date">outputs, not hours</span><span class="sp"></span><button class="btn sm" onclick="openForm('xp')">+ Log XP</button></div>
-<div class="grid g4"><div class="card"><h3>Level</h3><div class="kpi-num">${S.xp.level}</div><div class="kpi-sub">next at ${S.xp.next_at} XP</div></div>
-<div class="card"><h3>Lifetime</h3><div class="kpi-num mono">${S.xp.total}</div></div>
-<div class="card"><h3>This week</h3><div class="kpi-num mono">+${S.xp.week}</div></div>
-<div class="card"><h3>Streak</h3><div class="kpi-num mono">${S.xp.streak}d</div></div></div>
+<div class="grid g4"><div class="stat"><h3>Level</h3><div class="kpi-num">${S.xp.level}</div><div class="kpi-sub">next at ${S.xp.next_at} XP</div></div>
+<div class="stat"><h3>Lifetime</h3><div class="kpi-num mono">${S.xp.total}</div></div>
+<div class="stat"><h3>This week</h3><div class="kpi-num mono">+${S.xp.week}</div></div>
+<div class="stat"><h3>Streak</h3><div class="kpi-num mono">${S.xp.streak}d</div></div></div>
 <div class="grid g2" style="margin-top:12px"><div class="card"><h3>Reward guide (outputs)</h3>${guide.map(([a,x])=>`<div>● ${esc(a)} <b class="mono">+${x}</b> <button class="btn sm ghost" onclick="award('${esc(a)}',${x},'General')">Claim</button></div>`).join("")}</div>
 <div class="card"><h3>Recent XP</h3>${rows.slice(0,12).map(x=>`<div>● ${esc(x.date)} <b>${esc(x.achievement)}</b> <span class="mono">+${esc(x.total)}</span></div>`).join("")||'<span class="mut">None.</span>'}</div></div>`;}
 
@@ -211,7 +213,7 @@ function vTemplates(){const T=[
 ["Opportunity","Problem · Opportunity · Evidence · Value · Feasibility · Next validation step","opportunities"],
 ["Initiative","Objective · Actions · Owner · Milestone · Risk · Next step","initiatives"]];
 return `<div class="top"><h1>Templates</h1><span class="date">start structured, finish management-ready</span></div>
-${T.map(t=>`<div class="card" style="margin-top:8px"><b>${t[0]}</b><br><span class="mut">${t[1]}</span><br><button class="btn sm ghost" style="margin-top:6px" onclick="openForm('${t[2]}')">Use template →</button></div>`).join("")}`;}
+${T.map(t=>`<div class="card" style="margin-top:8px"><b>${t[0]}</b><br><span class="mut">${t[1]}</span><br><button class="btn sm ghost" style="margin-top:6px" onclick="openForm('${t[2]}')">Use template</button></div>`).join("")}`;}
 
 function vSettings(){return `<div class="top"><h1>Settings</h1></div><div class="grid g2">
 <div class="card"><h3>Today</h3><label class="small mut">Boss fight</label><input id="sbf" value="${esc(S.settings.boss_fight||"")}">
@@ -248,12 +250,12 @@ bars($("#chV"),k.map(x=>x.metric.split("(")[0].slice(0,14)),k.map(x=>{const a=+x
 function setup(cv){const d=devicePixelRatio||1,w=cv.clientWidth||600,h=180;cv.width=w*d;cv.height=h*d;const c=cv.getContext("2d");c.scale(d,d);return[c,w,h];}
 function bar(cv,labels,pairs){if(!cv)return;const[c,W,H]=setup(cv);c.clearRect(0,0,W,H);if(!labels.length){c.fillStyle="#888";c.fillText("No data",10,20);return;}
 const mx=Math.max(...pairs.flat(),1),n=labels.length,bw=Math.min(14,(W/n-16)/2.4);
-pairs.forEach((p,i)=>{const x0=8+i*(W-16)/n;[p[0],p[1]].forEach((v,j)=>{const bh=(v/mx)*(H-30);c.fillStyle=j?"#c9d4de":"#1f6feb";const x=x0+j*(bw+2);c.fillRect(x,H-18-bh,bw,bh);});c.fillStyle="#67707a";c.font="10px sans-serif";c.fillText(labels[i],x0,H-5);});
-c.fillStyle="#1f6feb";c.fillRect(8,4,10,8);c.fillStyle="#333";c.fillText("actual",22,12);c.fillStyle="#c9d4de";c.fillRect(70,4,10,8);c.fillStyle="#333";c.fillText("target",84,12);}
+pairs.forEach((p,i)=>{const x0=8+i*(W-16)/n;[p[0],p[1]].forEach((v,j)=>{const bh=(v/mx)*(H-30);c.fillStyle=j?TH().tgt:"#1f6feb";const x=x0+j*(bw+2);c.fillRect(x,H-18-bh,bw,bh);});c.fillStyle=TH().t;c.font="10px sans-serif";c.fillText(labels[i],x0,H-5);});
+c.fillStyle="#1f6feb";c.fillRect(8,4,10,8);c.fillStyle=TH().t2;c.fillText("actual",22,12);c.fillStyle=TH().tgt;c.fillRect(70,4,10,8);c.fillStyle=TH().t2;c.fillText("target",84,12);}
 function bars(cv,labels,vals){if(!cv)return;const[c,W,H]=setup(cv);c.clearRect(0,0,W,H);if(!labels.length){c.fillStyle="#888";c.fillText("No data",10,20);return;}
 const mx=Math.max(...vals.map(Math.abs),1),n=labels.length,bw=Math.min(26,(W/n)-10);
-vals.forEach((v,i)=>{const bh=Math.abs(v)/mx*(H-44);const x=6+i*(W-12)/n;c.fillStyle=v<-8?"#cf222e":v<-3?"#9a6700":"#1a7f37";const y=v<0?(H/2):(H/2-bh);c.fillRect(x,y,bw,Math.max(2,bh));c.fillStyle="#67707a";c.font="10px sans-serif";c.fillText(labels[i],x,H-5);c.fillStyle="#333";c.fillText(v+"%",x,H/2-(v<0?-12:bh+4));});
-c.strokeStyle="#ccc";c.beginPath();c.moveTo(0,H/2-8);c.lineTo(W,H/2-8);c.stroke();}
+vals.forEach((v,i)=>{const bh=Math.abs(v)/mx*(H-44);const x=6+i*(W-12)/n;c.fillStyle=v<-8?"#cf222e":v<-3?"#9a6700":"#1a7f37";const y=v<0?(H/2):(H/2-bh);c.fillRect(x,y,bw,Math.max(2,bh));c.fillStyle=TH().t;c.font="10px sans-serif";c.fillText(labels[i],x,H-5);c.fillStyle=TH().t2;c.fillText(v+"%",x,H/2-(v<0?-12:bh+4));});
+c.strokeStyle=TH().grid;c.beginPath();c.moveTo(0,H/2-8);c.lineTo(W,H/2-8);c.stroke();}
 
 /* ---------- focus + pomodoro + search ---------- */
 let FT={t:null,left:1500,dist:0,task:""};
@@ -268,13 +270,16 @@ $("#fexit").onclick=()=>{clearInterval(FT.t);FT.t=null;$("#focus").classList.rem
 let PT={t:null,left:1500};
 function pomStart(){if(PT.t)return;PT.t=setInterval(()=>{if(PT.left>0){PT.left--;FT.left=PT.left;updF();}else{clearInterval(PT.t);PT.t=null;PT.left=1500;toast("Pomodoro done — take 5.");}},1000);}
 function pomStop(){clearInterval(PT.t);PT.t=null;PT.left=1500;FT.left=1500;updF();}
-document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();$("#search").classList.add("open");$("#sin").value="";sres("");setTimeout(()=>$("#sin").focus(),30);}
+document.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.matches("[data-kb]")){e.preventDefault();e.target.click();}
+if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();$("#search").classList.add("open");$("#sin").value="";sres("");setTimeout(()=>$("#sin").focus(),30);}
 if(e.key==="Escape"){closeModal();$("#search").classList.remove("open");}});
 $("#sin").addEventListener("input",e=>sres(e.target.value));
 function sres(q){q=(q||"").toLowerCase();const out=[];const push=(t,arr,label)=>arr.forEach(r=>{const s=JSON.stringify(r).toLowerCase();if(q&&s.includes(q))out.push([t,r.id,(r.title||r.metric||r.headline||r.topic||r.name||r.achievement||"")+"",label]);});
 if(q){push("kpis",S.T.kpis||[],"KPI");push("insights",S.T.insights||[],"Insight");push("initiatives",S.T.initiatives||[],"Initiative");push("opportunities",S.T.opportunities||[],"Opportunity");push("intel",S.T.intel||[],"Intel");push("tasks",S.T.tasks||[],"Task");}
-$("#sres").innerHTML=out.slice(0,20).map(([t,id,txt,l])=>{const r=t==="tasks"?"daily":t;return `<div onclick="document.querySelector('#search').classList.remove('open');go('${r}');setTimeout(()=>openForm('${t}',${id}),150)"><b>${l}</b> — ${esc(txt.slice(0,90))}</div>`;}).join("")||(q?'<div class="mut" style="padding:8px">No matches.</div>':"");}
+$("#sres").innerHTML=out.slice(0,20).map(([t,id,txt,l])=>{const r=t==="tasks"?"daily":t;return `<div tabindex="0" data-kb onclick="document.querySelector('#search').classList.remove('open');go('${r}');setTimeout(()=>openForm('${t}',${id}),150)"><b>${l}</b> — ${esc(txt.slice(0,90))}</div>`;}).join("")||(q?'<div class="mut" style="padding:8px">No matches.</div>':"");}
 $("#modal").addEventListener("click",e=>{if(e.target.id==="modal")closeModal();});
 
 /* ---------- boot ---------- */
-(async function(){try{await load();renderNav();render();}catch(e){$("#view").innerHTML=`<div class="card"><h3>Server unreachable</h3><p class="mut">${esc(e.message)}</p><p>Start it with: <kbd>python server.py</kbd> in the career-os folder.</p></div>`;}})();
+(async function(){$("#themebtn").onclick=()=>setTheme(document.documentElement.dataset.theme==="dark"?"light":"dark");
+setTheme(document.documentElement.dataset.theme||"light");
+try{await load();renderNav();render();}catch(e){$("#view").innerHTML=`<div class="card"><h3>Server unreachable</h3><p class="mut">${esc(e.message)}</p><p>Start it with: <kbd>python server.py</kbd> in the career-os folder.</p></div>`;}})();
