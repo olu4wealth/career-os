@@ -58,6 +58,8 @@ try:
         pg.wait_for_selector("#rows tr")
         check("api: 8 kpi rows", pg.locator("#rows tr").count() == 8)
         check("api: charts drawn", pg.locator("canvas.chart").count() == 2)
+        check("api: chart fits rows", pg.evaluate(
+            "document.querySelector('#chK').getBoundingClientRect().height") == 8 * 24 + 10)
         pg.screenshot(path=os.path.join(SHOTS, "api-kpis.png"))
         # Insight builder -> creates insight + awards 25 XP
         pg.click("text=+ Insight builder")

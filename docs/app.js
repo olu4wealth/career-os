@@ -137,7 +137,7 @@ ${bn}<div class="boss"><small>Today's boss fight</small><div class="t">${esc(bf)
 ${card("Target achievement",(((k.find(x=>/achievement/i.test(x.metric))||{}).actual??"—"))+"%","vs 100%")}
 ${card("YoY growth",((k.find(x=>/yoy/i.test(x.metric))||{}).actual??"—")+"%","target 15%")}
 ${card("XP this week","+"+S.xp.week,`Lv ${S.xp.level} · ${S.xp.streak}d streak`)}</div>
-<div class="grid g2" style="margin-top:12px"><div class="card"><h3>Business pulse — actual vs target</h3><canvas class="chart" id="ch1"></canvas></div>
+<div class="grid g2" style="margin-top:12px"><div class="card"><h3>Business pulse — variance vs target</h3><canvas class="chart" id="ch1"></canvas></div>
 <div class="card"><h3>Attention required (${d.alerts.length})</h3>${d.alerts.length?d.alerts.map(a=>`<div class="alert ${a.kind.includes("red")||a.kind==="Overdue"?"red":a.kind==="Tasks"?"green":""}"><b>${esc(a.kind)}</b> — ${esc(a.text)}</div>`).join(""):'<div class="mut">Nothing flagged. Business is quiet — use the time for deep work.</div>'}</div></div>
 <div class="grid g3" style="margin-top:12px">
 <div class="card"><h3>Top priorities</h3>${pr.length?pr.map((p,i)=>`<div>● ${esc(p)}</div>`).join(""):'<span class="mut">Set in Settings.</span>'}</div>
@@ -163,8 +163,8 @@ await award(t.is_boss==="1"?"Boss fight complete: "+t.title:"Completed: "+t.titl
 
 function vKPIs(){return `<div class="top"><h1>KPI Cockpit</h1><span class="date">actual · target · variance · driver → implication → action</span><span class="sp"></span>
 <button class="btn ghost sm" onclick="openInsight()">+ Insight builder</button><button class="btn sm" onclick="openForm('kpis')">+ Add KPI</button></div>
-<div class="grid g2"><div class="card"><h3>Actual vs target</h3><canvas class="chart" id="chK"></canvas></div>
-<div class="card"><h3>Variance % (red = off track)</h3><canvas class="chart" id="chV"></canvas></div></div>
+<div class="grid g2"><div class="card"><h3>Target attainment (100 = on target)</h3><canvas class="chart" id="chK"></canvas></div>
+<div class="card"><h3>Variance vs target</h3><canvas class="chart" id="chV"></canvas></div></div>
 ${toolbar("kpis")}<div class="card" style="padding:4px 8px;overflow:auto"><table><thead><tr>
 <th>Period</th><th>Metric</th><th>Actual</th><th>Target</th><th>Var</th><th>Var%</th><th>YoY</th><th>Driver</th><th>Action</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div>
 <div class="small mut" style="margin-top:6px">Click a row to edit driver / implication / action — or send it to the Insight Builder. Rule: every red KPI must have an owner + next action.</div>`;}
@@ -247,21 +247,30 @@ else if(R==="xp")v.innerHTML=vXP();
 else if(R==="templates")v.innerHTML=vTemplates();
 else if(R==="settings")v.innerHTML=vSettings();
 if(F[R])paintRows(R);
-if(R==="command")bar($("#ch1"),S.D.kpis.map(k=>k.metric.split("(")[0].slice(0,14)),S.D.kpis.map(k=>[+k.actual||0,+k.target||0]));
+if(R==="command")hbars($("#ch1"),S.D.kpis.map(k=>({label:k.metric.split("(")[0].trim(),value:k.variance_pct,color:stc(k.status)})),{ref:0,suffix:"%"});
 if(R==="kpis"){const k=(S.T.kpis||[]).filter(r=>rowMatch("kpis",r)).slice(0,10);
-bar($("#chK"),k.map(x=>x.metric.split("(")[0].slice(0,14)),k.map(x=>[+x.actual||0,+x.target||0]));
-bars($("#chV"),k.map(x=>x.metric.split("(")[0].slice(0,14)),k.map(x=>{const a=+x.actual||0,t=+x.target||1;return +(((a-t)/t*100).toFixed(1));}));}}
+hbars($("#chK"),k.map(x=>{const t=+x.target||0;return{label:x.metric.split("(")[0].trim(),value:t?+((+x.actual/t*100).toFixed(1)):null,color:stc(x.status)};}).filter(o=>o.value!=null),{ref:100,suffix:"%"});
+hbars($("#chV"),k.map(x=>{const a=+x.actual||0,t=+x.target||1;return{label:x.metric.split("(")[0].trim(),value:+(((a-t)/t*100).toFixed(1)),color:stc(x.status)};}),{ref:0,suffix:"%"});}}
 
 /* ---------- canvas charts (no deps) ---------- */
-function setup(cv){const d=devicePixelRatio||1,w=cv.clientWidth||600,h=180;cv.width=w*d;cv.height=h*d;const c=cv.getContext("2d");c.scale(d,d);return[c,w,h];}
-function bar(cv,labels,pairs){if(!cv)return;const[c,W,H]=setup(cv);c.clearRect(0,0,W,H);if(!labels.length){c.fillStyle="#888";c.fillText("No data",10,20);return;}
-const mx=Math.max(...pairs.flat(),1),n=labels.length,bw=Math.min(14,(W/n-16)/2.4);
-pairs.forEach((p,i)=>{const x0=8+i*(W-16)/n;[p[0],p[1]].forEach((v,j)=>{const bh=(v/mx)*(H-30);c.fillStyle=j?TH().tgt:"#1f6feb";const x=x0+j*(bw+2);c.fillRect(x,H-18-bh,bw,bh);});c.fillStyle=TH().t;c.font="10px sans-serif";c.fillText(labels[i],x0,H-5);});
-c.fillStyle="#1f6feb";c.fillRect(8,4,10,8);c.fillStyle=TH().t2;c.fillText("actual",22,12);c.fillStyle=TH().tgt;c.fillRect(70,4,10,8);c.fillStyle=TH().t2;c.fillText("target",84,12);}
-function bars(cv,labels,vals){if(!cv)return;const[c,W,H]=setup(cv);c.clearRect(0,0,W,H);if(!labels.length){c.fillStyle="#888";c.fillText("No data",10,20);return;}
-const mx=Math.max(...vals.map(Math.abs),1),n=labels.length,bw=Math.min(26,(W/n)-10);
-vals.forEach((v,i)=>{const bh=Math.abs(v)/mx*(H-44);const x=6+i*(W-12)/n;c.fillStyle=v<-8?"#cf222e":v<-3?"#9a6700":"#1a7f37";const y=v<0?(H/2):(H/2-bh);c.fillRect(x,y,bw,Math.max(2,bh));c.fillStyle=TH().t;c.font="10px sans-serif";c.fillText(labels[i],x,H-5);c.fillStyle=TH().t2;c.fillText(v+"%",x,H/2-(v<0?-12:bh+4));});
-c.strokeStyle=TH().grid;c.beginPath();c.moveTo(0,H/2-8);c.lineTo(W,H/2-8);c.stroke();}
+function setup(cv,h){const d=devicePixelRatio||1,w=cv.clientWidth||600,H=h||180;cv.width=w*d;cv.height=H*d;cv.style.height=H+"px";const c=cv.getContext("2d");c.scale(d,d);return[c,w,H];}
+const stc=s=>{const d=document.documentElement.dataset.theme==="dark",v=s||"";
+if(/^(on-track|Green|Done|Completed)$/.test(v))return d?"#3fb950":"#1a7f37";
+if(/attention|Amber|At Risk|Medium/.test(v))return d?"#d29922":"#9a6700";
+if(/off-track|Delayed|Red/.test(v))return d?"#f85149":"#cf222e";return TH().tgt;};
+function hbars(cv,items,o){o=o||{};if(!cv)return;const n=items.length,H=n*24+10,[c,W]=setup(cv,H);c.clearRect(0,0,W,H);
+if(!n){c.fillStyle=TH().t;c.fillText("No data",10,20);return;}
+const vals=items.map(i=>i.value),lo=Math.min(0,...vals),mx0=Math.max(0,...vals.concat([o.ref||0])),hi=mx0===lo?lo+1:mx0*1.08;
+const LW=148,RW=58,X=v=>LW+(v-lo)/(hi-lo)*(W-LW-RW);
+c.font="11px sans-serif";
+items.forEach((it,i)=>{const y=i*24+4,x0=X(0),x1=X(it.value);
+const lb=it.label.length>24?it.label.slice(0,23)+"…":it.label;c.fillStyle=TH().t2;c.fillText(lb,4,y+12);
+c.fillStyle=it.color;const bx=Math.min(x0,x1);c.fillRect(bx,y+1,Math.max(2,Math.abs(x1-x0)),12);
+const t=(Math.round(it.value*10)/10)+o.suffix;c.fillStyle=TH().t;
+c.fillText(t,x1>=x0?x1+5:bx-5-c.measureText(t).width,y+12);});
+c.strokeStyle=TH().grid;c.beginPath();c.moveTo(X(0),2);c.lineTo(X(0),H-2);c.stroke();
+if(o.ref){const rx=X(o.ref);c.setLineDash([4,3]);c.beginPath();c.moveTo(rx,2);c.lineTo(rx,H-2);c.stroke();c.setLineDash([]);
+c.fillStyle=TH().t;c.fillText("target "+o.ref+o.suffix,rx+4,12);}}
 
 /* ---------- focus + pomodoro + search ---------- */
 let FT={t:null,left:1500,dist:0,task:""};
