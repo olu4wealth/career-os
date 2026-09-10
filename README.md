@@ -35,7 +35,7 @@ There is one app with two places it can keep your data:
 | Runs on | GitHub Pages, any device | Your PC only |
 | Data stored in | Your browser (localStorage) | `career_os.db` (SQLite) |
 | Sync between devices | No — each browser keeps its own copy | N/A |
-| Back up via | Settings → Download full backup | Settings → Download full backup, or copy the `.db` file |
+| Back up via | Settings → Download full backup | Settings → Download full backup (or close the app first, then copy the `.db` file) |
 
 Both have identical screens and features. The online version exists because
 GitHub Pages cannot run a database; the Python backend is a single
