@@ -10,6 +10,9 @@ through one workflow: **Track → Analyse → Identify → Explain → Recommend
 
 **Try it now (no install):** https://olu4wealth.github.io/career-os/
 
+**Full user guide:** [USERGUIDE.md](USERGUIDE.md) — every section explained,
+daily and weekly workflows, XP rules, backup, troubleshooting, FAQ.
+
 ## What it does
 
 - **Command Centre** — boss fight, business pulse (actual vs target), and an
@@ -27,12 +30,12 @@ through one workflow: **Track → Analyse → Identify → Explain → Recommend
 
 There is one app with two places it can keep your data:
 
-| | Online (the link above) | Local (`python server.py`) |
+| | Online (the link above) | Local (app or Python) |
 |---|---|---|
 | Runs on | GitHub Pages, any device | Your PC only |
 | Data stored in | Your browser (localStorage) | `career_os.db` (SQLite) |
 | Sync between devices | No — each browser keeps its own copy | N/A |
-| Back up via | Settings → Download full backup | Copy the `.db` file |
+| Back up via | Settings → Download full backup | Settings → Download full backup, or copy the `.db` file |
 
 Both have identical screens and features. The online version exists because
 GitHub Pages cannot run a database; the Python backend is a single
@@ -40,13 +43,21 @@ zero-dependency file (`server.py`, stdlib only).
 
 ## Run locally
 
+**Easiest:** double-click `dist/CareerOS.exe` (or the *Career OS* desktop
+shortcut). Your browser opens with the app — no Python, no commands.
+Close its window to stop the app. To build the exe yourself:
+`pip install pyinstaller`, then
+`pyinstaller --onefile --noconsole --name CareerOS --add-data "docs;docs" server.py`.
+
+**Or with Python:**
+
 ```
 python server.py
 ```
 
 then open http://127.0.0.1:8130. No dependencies, no build step.
-To start over with fresh demo data, stop the server, delete `career_os.db`,
-and restart.
+To start over with fresh demo data: Settings → Reset demo data (or stop the
+server, delete `career_os.db`, and restart).
 
 ## Verify it works
 

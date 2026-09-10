@@ -11,13 +11,20 @@ import io
 import json
 import os
 import sqlite3
+import sys
 import urllib.parse
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
-BASE = os.path.dirname(os.path.abspath(__file__))
+if getattr(sys, "frozen", False):
+    # PyInstaller exe: database lives next to the exe, web files inside the bundle.
+    BASE = os.path.dirname(sys.executable)
+    BUNDLE = sys._MEIPASS
+else:
+    BASE = os.path.dirname(os.path.abspath(__file__))
+    BUNDLE = BASE
 DB = os.path.join(BASE, "career_os.db")
-STATIC = os.path.join(BASE, "docs")
+STATIC = os.path.join(BUNDLE, "docs")
 
 # table -> columns (first col is INTEGER PRIMARY KEY)
 SCHEMA = {
@@ -525,11 +532,16 @@ def xp_summary(con):
 
 
 if __name__ == "__main__":
-    import sys
     init_db()
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8130
+    url = f"http://127.0.0.1:{port}"
+    if getattr(sys, "frozen", False):
+        import webbrowser
+        print(f"Career OS running at {url}  (db: {DB})")
+        webbrowser.open(url)
+    else:
+        print(f"Career OS running at {url}  (db: {DB})")
     srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
-    print(f"Career OS running at http://127.0.0.1:{port}  (db: {DB})")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

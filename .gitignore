@@ -1,2 +1,5 @@
 career_os.db
 __pycache__/
+dist/
+build/
+*.spec
