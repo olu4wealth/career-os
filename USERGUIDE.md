@@ -239,6 +239,13 @@ comeback streak feels better.
   It saves one JSON file with everything. The Command Centre shows a reminder
   banner if you haven't backed up in 7+ days. There is no undo and no cloud
   copy — this file *is* your safety net. Keep it somewhere safe.
+- **Live news drafts:** Settings → News feeds holds your sources (7 preloaded:
+  InspenOnline plus regulator, market, competitor, and economy searches) and
+  your free rss2json key. Market Intelligence → **Fetch news** stages headlines
+  as *[Draft]* items — open one, write the implication, Save, and it promotes
+  to real intel. Discard junk and it never resurfaces. Note that trade press
+  mixes reporting with sponsored company announcements: treat single-company
+  stories as claims, not facts, until a second outlet corroborates them.
 - **Starting over:** Settings → **Reset demo data** (asks for confirmation).
   On the desktop app this restores fresh sample data; online it clears your
   browser copy and reloads the samples.

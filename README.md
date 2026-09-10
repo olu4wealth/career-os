@@ -69,7 +69,7 @@ pip install playwright
 python tests/test_browser.py
 ```
 
-Runs 22 automated browser checks (Chrome) against both the local backend and
+Runs 32 automated browser checks (Chrome) against both the local backend and
 the offline demo mode. `python tests/test_live.py` checks the deployed site.
 
 ## Honest limits (v1)

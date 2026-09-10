@@ -12,6 +12,8 @@ import subprocess
 import sys
 import tempfile
 import time
+import json
+import datetime
 from playwright.sync_api import sync_playwright
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -97,8 +99,52 @@ try:
             pg.click(f"text={nav}")
             pg.wait_for_timeout(300)
         check("api: all views render", "Reset demo data" in pg.content())
+        # live news → drafts (fetch stubbed at the network edge)
+        today = datetime.date.today().isoformat()
+        canned = [
+            {"title": "Test Story Alpha Raises Capital - TestOutlet",
+             "link": "https://example.com/alpha", "pubDate": today + " 10:00:00"},
+            {"title": "Seeded Beta Story",
+             "link": "https://example.com/beta?utm_source=test", "pubDate": today + " 09:00:00"},
+            {"title": "Test Story Alpha Raises Capital - OtherOutlet",
+             "link": "https://other.com/alpha2", "pubDate": today + " 11:00:00"},
+        ]
+        pg.evaluate(f"POST('/api/intel',{{date:'{today}',headline:'Seeded Beta Story',"
+                    "source_url:'https://example.com/beta'})")
+        pg.evaluate("(async()=>{S.T.intel=await GET('/api/intel')})()")
+        pg.evaluate("S.settings.rsskey='test-key';S.settings.feeds=JSON.stringify("
+                    "[{name:'Stub',type:'news',q:'test',theme:'Insurance'}])")
+        pg.evaluate(f"""() => {{
+            window._rf = window.fetch;
+            window.fetch = async (u, o) => {{
+                if (String(u).includes('rss2json'))
+                    return {{ json: async () => ({{ status: 'ok', items: {json.dumps(canned)} }}) }};
+                return window._rf(u, o);
+            }};
+        }}""")
+        pg.click("text=Market Intelligence")
+        pg.click("button:has-text('Fetch news')")
+        pg.wait_for_selector("#toast div:has-text('new draft')", timeout=15000)
+        check("news: 1 draft staged", "1 new draft" in pg.content())
+        src = pg.evaluate("S.T.intel.find(x=>String(x.headline).includes('Alpha')).source")
+        check("news: dup skipped, twin merged", "also: OtherOutlet" in src)
+        pg.click("button:has-text('Fetch news')")
+        pg.wait_for_selector("#toast div:has-text('0 new drafts')", timeout=15000)
+        check("news: refetch adds nothing", True)
+        pg.click("tr:has-text('Test Story Alpha')")
+        for name in ["changed", "why_matters", "implication", "action"]:
+            pg.fill(f"#sheet [name={name}]", "test " + name)
+        pg.click("#sheet button:has-text('Save')")
+        pg.wait_for_selector("#toast div:has-text('Promoted')", timeout=8000)
+        check("news: completing analysis promotes draft", True)
+        pg.evaluate("S.settings.rsskey=''")
+        pg.click("button:has-text('Fetch news')")
+        pg.wait_for_selector("#toast div:has-text('rss2json key')", timeout=8000)
+        check("news: missing key guided, nothing breaks", True)
+        pg.evaluate("window.fetch=window._rf")
         pg.screenshot(path=os.path.join(SHOTS, "api-settings.png"))
         pg.on("dialog", lambda d: d.accept())
+        pg.click("text=Settings")
         pg.click("button:has-text('Reset demo data')")
         pg.wait_for_selector("#toast div:has-text('Fresh demo data')", timeout=15000)
         check("api: reset reseeds", "Fresh demo data" in pg.content())

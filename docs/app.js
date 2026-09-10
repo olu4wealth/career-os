@@ -87,18 +87,63 @@ async function LPUT(p,b){const ps=new URL(p,location.origin).pathname.split("/")
 if(r){Object.assign(r,b);if(ps[1]==="xp")r.total=xpt(r);sync();}return r||{ok:true};}
 async function LDEL(p){const ps=new URL(p,location.origin).pathname.split("/").filter(Boolean);S.T[ps[1]]=(S.T[ps[1]]||[]).filter(x=>String(x.id)!==ps[2]);sync();return{ok:true};}
 
+/* ---------- live news → draft intel (verified feeds, user-reviewed) ---------- */
+const FEED_DEFAULT=[
+{name:"InspenOnline Insurance",type:"rss",url:"https://inspenonline.com/category/spotlight/insurance/feed/",theme:"Insurance"},
+{name:"NAICOM watch",type:"news",q:"NAICOM",theme:"Regulation"},
+{name:"Nigeria insurance market",type:"news",q:"Nigeria insurance industry",theme:"Insurance"},
+{name:"Competitors",type:"news",q:"Leadway Assurance OR AXA Mansard OR AIICO OR Custodian",theme:"Competition"},
+{name:"InsurTech and microinsurance",type:"news",q:"insurtech Africa OR microinsurance Nigeria",theme:"InsurTech"},
+{name:"Motor portfolio",type:"news",q:"motor insurance Nigeria",theme:"Insurance"},
+{name:"Economy and naira",type:"news",q:"naira OR CBN monetary policy",theme:"Economy"}];
+const feedLines=()=>{try{const f=JSON.parse(S.settings.feeds||"[]");if(f.length)return f.map(x=>`${x.name} | ${x.type==="rss"?"rss: "+x.url:"news: "+x.q} | ${x.theme||"Insurance"}`);}catch(e){}return FEED_DEFAULT.map(x=>`${x.name} | ${x.type==="rss"?"rss: "+x.url:"news: "+x.q} | ${x.theme}`);};
+const normUrl=u=>{try{const x=new URL(u);return((x.hostname.replace(/^www\./,"")+x.pathname.replace(/\/+$/,"")).toLowerCase())||null;}catch(e){return null;}};
+const titleFp=t=>String(t||"").toLowerCase().replace(/[^a-z0-9\s]/g," ").replace(/\s+/g," ").trim().split(" ").filter(w=>w.length>2&&!["the","and","for","with","from","that","this","has","have","will","its","are"].includes(w));
+const jacc=(a,b)=>{if(!a.length||!b.length)return 0;const A=new Set(a),B=new Set(b);let n=0;A.forEach(w=>{if(B.has(w))n++;});return n/(A.size+B.size-n);};
+let SEEN=[],SEENSET=new Set();
+const loadSeen=()=>{try{SEEN=JSON.parse(S.settings.feed_seen||"[]");}catch(e){SEEN=[];}SEENSET=new Set(SEEN);};
+async function persistSeen(){SEEN=SEEN.slice(-500);S.settings.feed_seen=JSON.stringify(SEEN);await POST("/api/settings",{feed_seen:S.settings.feed_seen});}
+const rememberFp=r=>{const u=normUrl(r.source_url||"");if(u)SEENSET.add("u:"+u);const fp=titleFp(r.headline||"").join(" ");if(fp)SEENSET.add("t:"+fp);SEEN=[...SEENSET];};
+async function fetchNews(){const key=(S.settings.rsskey||"").trim();
+if(!key){toast("News needs a free rss2json key — Settings → News feeds explains (2-minute signup).");go("settings");return;}
+let feeds=[];try{feeds=JSON.parse(S.settings.feeds||"[]");}catch(e){}
+if(!feeds.length){toast("No feeds configured (Settings → News feeds).");return;}
+loadSeen();toast("Fetching news…");let added=0,merged=0,skipped=0;
+for(const f of feeds.slice(0,10)){
+const rssUrl=f.type==="rss"?f.url:"https://news.google.com/rss/search?q="+encodeURIComponent(f.q||"")+"&hl=en-NG&gl=NG&ceid=NG:en";
+let items=[];try{const r=await(await fetch("https://api.rss2json.com/v1/api.json?rss_url="+encodeURIComponent(rssUrl)+"&api_key="+encodeURIComponent(key)+"&count=30")).json();
+if(r.status!=="ok")throw new Error(r.message||"feed error");items=r.items||[];}catch(e){toast("Feed failed ("+f.name+"): "+String((e&&e.message)||e).slice(0,90));continue;}
+for(const it of items.slice(0,30)){
+let title=String(it.title||"").trim(),outlet=f.name;
+const m=title.match(/^(.*)\s+-\s+([^-]{2,40})$/);if(f.type!=="rss"&&m){title=m[1].trim();outlet=m[2].trim();}
+const link=String(it.link||"").trim();if(!title||!link){skipped++;continue;}
+const nu=normUrl(link);if(!nu){skipped++;continue;}
+if(SEENSET.has("u:"+nu)){skipped++;continue;}
+const fp=titleFp(title).join(" ");
+const rows=S.T.intel||[];
+if(rows.some(r=>normUrl(r.source_url||"")===nu)){SEENSET.add("u:"+nu);skipped++;continue;}
+const sib=rows.find(r=>{try{if(!r.date||Math.abs(new Date(it.pubDate)-new Date(r.date+"T12:00"))>72*36e5)return false;}catch(e){return false;}return jacc(titleFp(r.headline||""),titleFp(title))>=0.8;});
+if(sib){sib.source=((sib.source||"")+" ; also: "+outlet).slice(0,300);const u=await PUT("/api/intel/"+sib.id,{source:sib.source});S.T.intel=S.T.intel.map(x=>String(x.id)===String(sib.id)?u:x);SEENSET.add("u:"+nu);SEENSET.add("t:"+fp);merged++;continue;}
+if(SEENSET.has("t:"+fp)){skipped++;continue;}
+const saved=await POST("/api/intel",{date:String(it.pubDate||"").slice(0,10)||today(),headline:title.slice(0,200),theme:f.theme||"Insurance",changed:"",why_matters:"",implication:"",opp_risk:"",action:"",source:(outlet+" · via RSS · unverified").slice(0,200),priority:"Medium",source_url:link,draft:"1"});
+S.T.intel.unshift(saved);SEENSET.add("u:"+nu);SEENSET.add("t:"+fp);added++;}}
+SEEN=[...SEENSET];S.settings.feed_last=today()+" "+new Date().toTimeString().slice(0,5);
+await POST("/api/settings",{feed_seen:JSON.stringify(SEEN.slice(-500)),feed_last:S.settings.feed_last});
+render();toast(`News: ${added} new draft${added===1?"":"s"}${merged?`, ${merged} merged`:""}${skipped?`, ${skipped} skipped`:""}. Review them in Market Intel.`);}
+
 /* ---------- generic table + form ---------- */
 function toolbar(t,extra){return `<div class="toolbar"><input id="fq" aria-label="Filter rows" placeholder="Filter…" value="${esc(S.q[t]||"")}" oninput="S.q['${t}']=this.value;paintRows('${t}')">
 <button class="btn sm" onclick="openForm('${t}')">+ Add</button>
 <button class="btn sm ghost" onclick="expCSV('${t}')">Export CSV</button>${extra||""}</div>`;}
 function rowMatch(t,r){const q=(S.q[t]||"").toLowerCase();return !q||JSON.stringify(r).toLowerCase().includes(q);}
 function paintRows(t){const tb=$("#rows");if(!tb)return;const c=F[t];const rows=(S.T[t]||[]).filter(r=>rowMatch(t,r));
-tb.innerHTML=rows.length?rows.map(r=>`<tr tabindex="0" data-kb onclick="openForm('${t}',${r.id})">${c.cols.map(k=>{let v=r[k];
+tb.innerHTML=rows.length?rows.map(r=>`<tr tabindex="0" data-kb onclick="openForm('${t}',${r.id})">${c.cols.map(k=>{let v=(t==="intel"&&k==="headline"&&String(r.draft)==="1")?"[Draft] "+(r[k]||""):r[k];
 if(k==="variance_pct"&&r.actual!=null&&r.target!=null){const a=+r.actual,tg=+r.target;v=tg?(((a-tg)/tg*100).toFixed(1)+"%"):"—";}
 if(["status","risk","priority","value","feasibility","fit","outcome"].includes(k))return `<td>${pill(v)}</td>`;
 return `<td>${esc(v??"—")}</td>`;}).join("")}</tr>`).join(""):`<tr><td colspan="9"><div class="empty">No records. Click + Add — or import a CSV from Settings.</div></td></tr>`;}
 function crudView(t,title,sub){return `<div class="top"><h1>${title}</h1><span class="date">${esc(sub||"")}</span><span class="sp"></span>
-<button class="btn ghost sm" onclick="impCSV('${t}')">Import CSV</button><button class="btn sm" onclick="openForm('${t}')">+ Add ${F[t].t}</button></div>
+<button class="btn ghost sm" onclick="impCSV('${t}')">Import CSV</button>${t==="intel"?'<button class="btn sm" onclick="fetchNews()">Fetch news</button>':""}<button class="btn sm" onclick="openForm('${t}')">+ Add ${F[t].t}</button></div>
+${t==="intel"?`<div class="small mut">Drafts are unverified machine finds — open one, add the implication, Save to promote. Discard junk (it will not resurface). ${(S.T.intel||[]).filter(r=>String(r.draft)==="1").length} awaiting review.</div>`:""}
 ${toolbar(t)}<div class="card" style="padding:4px 8px;overflow:auto"><table><thead><tr>${F[t].cols.map(c=>`<th>${esc(c.replace(/_/g," "))}</th>`).join("")}</tr></thead><tbody id="rows"></tbody></table></div>`;}
 function openForm(t,id){const c=F[t];const r=id?(S.T[t]||[]).find(x=>x.id===id)||{}:{};
 $("#sheet").innerHTML=`<h2>${id?"Edit":"New"} ${c.t}</h2>${Object.entries(c.fields).map(([k,[l,ty,op]])=>{
@@ -114,8 +159,12 @@ ${id?`<button class="btn danger" onclick="delRow('${t}',${id})">Delete</button>`
 $("#modal").classList.add("open");}
 async function saveForm(t,id){const b={};$$("#sheet [name]").forEach(i=>b[i.name]=i.value);
 try{if(id){const r=await PUT(`/api/${t}/${id}`,b);S.T[t]=S.T[t].map(x=>x.id===id?r:x);}else{const r=await POST("/api/"+t,b);S.T[t]=[r,...(S.T[t]||[])];}
+if(t==="intel"){const rid=id||(S.T[t][0]&&S.T[t][0].id);const row=(S.T[t]||[]).find(x=>x.id===rid);
+if(row&&String(row.draft)==="1"&&["changed","why_matters","implication","action"].every(k=>String(row[k]||"").trim())){const u=await PUT(`/api/intel/${rid}`,{draft:"0"});S.T[t]=S.T[t].map(x=>x.id===rid?u:x);closeModal();render();toast("Promoted from draft — logged as intel.");return;}}
 closeModal();render();toast("Saved.");}catch(e){toast("Save failed: "+e.message);}}
-async function delRow(t,id){if(!confirm("Delete this record?"))return;await DEL(`/api/${t}/${id}`);S.T[t]=S.T[t].filter(x=>x.id!==id);closeModal();render();}
+async function delRow(t,id){if(!confirm("Delete this record?"))return;
+if(t==="intel"){const r=(S.T[t]||[]).find(x=>x.id===id);if(r){loadSeen();rememberFp(r);await persistSeen();}}
+await DEL(`/api/${t}/${id}`);S.T[t]=S.T[t].filter(x=>x.id!==id);closeModal();render();}
 function closeModal(){$("#modal").classList.remove("open");}
 function expCSV(t){if(MODE==="api")return location.href="/api/export?table="+t;
 const cols=["id",...Object.keys(F[t].fields)],cell=v=>`"${String(v??"").replace(/"/g,'""')}"`;
@@ -144,7 +193,7 @@ ${card("XP this week","+"+S.xp.week,`Lv ${S.xp.level} · ${S.xp.streak}d streak`
 <div class="grid g3" style="margin-top:12px">
 <div class="card"><h3>Top priorities</h3>${pr.length?pr.map((p,i)=>`<div>● ${esc(p)}</div>`).join(""):'<span class="mut">Set in Settings.</span>'}</div>
 <div class="card"><h3>Opportunity radar</h3>${(S.T.opportunities||[]).filter(o=>o.status!=="Rejected").slice(0,4).map(o=>`<div>● <b>${esc(o.title)}</b> ${pill(o.value)} <span class="mut">${esc(o.status||"")}</span></div>`).join("")||'<span class="mut">None.</span>'}<div style="margin-top:6px"><button class="btn sm ghost" onclick="go('opportunities')">Open radar</button></div></div>
-<div class="card"><h3>Latest intelligence</h3>${(S.T.intel||[]).slice(0,4).map(w=>`<div>● <b>${esc(w.headline)}</b><br><span class="mut">${esc(w.theme||"")} · ${esc(w.date||"")}</span></div>`).join("")||'<span class="mut">None.</span>'}<div style="margin-top:6px"><button class="btn sm ghost" onclick="go('intel')">Open intel</button></div></div></div>`;}
+<div class="card"><h3>Latest intelligence</h3>${(S.T.intel||[]).slice(0,4).map(w=>`<div>● <b>${esc(w.headline)}</b><br><span class="mut">${esc(w.theme||"")} · ${esc(w.date||"")}</span></div>`).join("")||'<span class="mut">None.</span>'}<div style="margin-top:6px"><button class="btn sm ghost" onclick="go('intel')">Open intel</button> <button class="btn sm ghost" onclick="fetchNews()">Fetch news</button> <span class="small mut">last: ${esc(S.settings.feed_last||"never")}</span></div></div></div>`;}
 
 function vDaily(){const ts=(S.T.tasks||[]).filter(t=>t.date===today());const boss=ts.find(t=>t.is_boss==="1")||ts[0];
 return `<div class="top"><h1>Daily OS</h1><span class="date">${today()} — outcomes, not to-dos</span><span class="sp"></span>
@@ -227,11 +276,16 @@ function vSettings(){return `<div class="top"><h1>Settings</h1></div><div class=
 <div class="card"><h3>Today</h3><label class="small mut">Boss fight</label><input id="sbf" value="${esc(S.settings.boss_fight||"")}">
 <label class="small mut">Top 3 priorities (one per line)</label><textarea id="spr" rows="3">${esc((()=>{try{return JSON.parse(S.settings.priorities||"[]").join("\n");}catch(e){return "";}})())}</textarea>
 <div style="margin-top:8px"><button class="btn sm" onclick="saveSettings()">Save</button></div></div>
+<div class="card"><h3>News feeds</h3><div class="small mut">Live headlines become draft intel for your review — never auto-filed as fact. Needs a free key from rss2json.com (2-minute signup); the key stays in your browser/database, never in shared code.</div>
+<label class="small mut">rss2json API key</label><input id="rkey" type="password" value="${esc(S.settings.rsskey||"")}" autocomplete="off">
+<label class="small mut">Feeds — one per line: Name | rss: URL — or — Name | news: search words | Theme</label><textarea id="feeds" rows="7">${esc(feedLines().join("\n"))}</textarea>
+<div style="margin-top:8px;display:flex;gap:8px;align-items:center"><button class="btn sm" onclick="saveSettings()">Save feeds</button><span class="small mut">Last fetch: ${esc(S.settings.feed_last||"never")}</span></div></div>
 <div class="card"><h3>Data</h3><div class="small mut">Workbook parity: each module exports / imports CSV with the same columns as the Excel sheets (KPI Cockpit, Strategic Tracker, …). Excel import: save the sheet as CSV, then import here.</div>
 <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">${Object.keys(F).map(t=>`<button class="btn sm ghost" onclick="expCSV('${t}')">↓ ${t}</button>`).join("")}</div>
 <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn sm ghost" onclick="fullBackup()">Download full backup</button><button class="btn sm danger" onclick="resetDemo()">Reset demo data</button></div></div></div>`;}
 async function saveSettings(){const pr=$("#spr").value.split("\n").map(s=>s.trim()).filter(Boolean).slice(0,3);
-await POST("/api/settings",{boss_fight:$("#sbf").value,priorities:pr});S.settings.boss_fight=$("#sbf").value;S.settings.priorities=JSON.stringify(pr);toast("Saved.");render();}
+const feeds=$("#feeds").value.split("\n").map(l=>l.trim()).filter(Boolean).slice(0,10).map(l=>{const p=l.split("|").map(s=>s.trim());const v=p[1]||"";const o={name:(p[0]||"Feed").slice(0,60),theme:p[2]||"Insurance"};if(/^rss:/i.test(v)){o.type="rss";o.url=v.slice(4).trim();}else{o.type="news";o.q=v.replace(/^news:/i,"").trim();}return o;}).filter(o=>o.url||o.q);
+await POST("/api/settings",{boss_fight:$("#sbf").value,priorities:pr,rsskey:$("#rkey").value.trim(),feeds:feeds});S.settings.boss_fight=$("#sbf").value;S.settings.priorities=JSON.stringify(pr);S.settings.rsskey=$("#rkey").value.trim();S.settings.feeds=JSON.stringify(feeds);toast("Saved.");render();}
 
 /* ---------- router ---------- */
 function render(){renderLvl();const v=$("#view");const R=S.route;

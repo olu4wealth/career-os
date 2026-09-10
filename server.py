@@ -40,7 +40,8 @@ SCHEMA = {
                       "feasibility", "fit", "owner", "status",
                       "next_step", "source"],
     "intel": ["id", "date", "headline", "theme", "changed", "why_matters",
-              "implication", "opp_risk", "action", "source", "priority"],
+              "implication", "opp_risk", "action", "source", "priority",
+              "source_url", "draft"],
     "competitors": ["id", "name", "move", "implication", "response", "date"],
     "insights": ["id", "date", "topic", "finding", "evidence", "driver",
                  "implication", "recommendation", "action", "outcome",
@@ -95,6 +96,10 @@ def init_db():
     if "short" not in [r[1] for r in c.execute("PRAGMA table_info(kpis)").fetchall()]:
         c.execute('ALTER TABLE kpis ADD COLUMN "short" TEXT')
         con.commit()
+    for col in ("source_url", "draft"):
+        if col not in [r[1] for r in c.execute("PRAGMA table_info(intel)").fetchall()]:
+            c.execute(f'ALTER TABLE intel ADD COLUMN "{col}" TEXT')
+            con.commit()
     if c.execute('SELECT COUNT(*) FROM kpis').fetchone()[0] == 0:
         seed(c)
         con.commit()
