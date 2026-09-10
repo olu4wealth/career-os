@@ -48,6 +48,9 @@ shortcut). Your browser opens with the app — no Python, no commands.
 Close its window to stop the app. To build the exe yourself:
 `pip install pyinstaller`, then
 `pyinstaller --onefile --noconsole --name CareerOS --add-data "docs;docs" server.py`.
+Rebuild after any change under `docs/` — the exe bundles its own frozen copy,
+so the desktop app only picks up updates when rebuilt (close the app first,
+or Windows locks the file).
 
 **Or with Python:**
 
