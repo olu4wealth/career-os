@@ -13,7 +13,7 @@ async function award(ach,base,cat,notes){try{const x=await POST("/api/award",{ac
 
 /* ---------- field schemas: key -> [label, type, options] ---------- */
 const F={
-kpis:{t:"KPI",cols:["period","metric","category","actual","target","variance_pct","yoy","status"],fields:{period:["Period","text"],metric:["Metric","text"],category:["Category","select",["Premium","Growth","Claims","Retention","Profitability","Finance","Distribution"]],actual:["Actual","number"],target:["Target","number"],prior_period:["Prior period","number"],prior_year:["Prior year","number"],driver:["Driver / explanation","textarea"],implication:["Business implication","textarea"],action:["Recommended action","textarea"],owner:["Owner","text"],status:["Status","select",["on-track","attention","off-track"]]}},
+kpis:{t:"KPI",cols:["period","metric","category","actual","target","variance_pct","yoy","status"],fields:{period:["Period","text"],metric:["Metric","text"],short:["Short label (charts)","text"],category:["Category","select",["Premium","Growth","Claims","Retention","Profitability","Finance","Distribution"]],actual:["Actual","number"],target:["Target","number"],prior_period:["Prior period","number"],prior_year:["Prior year","number"],driver:["Driver / explanation","textarea"],implication:["Business implication","textarea"],action:["Recommended action","textarea"],owner:["Owner","text"],status:["Status","select",["on-track","attention","off-track"]]}},
 tasks:{t:"Task",cols:["title","category","priority","effort","status","xp_reward"],fields:{date:["Date","date"],title:["Outcome / task","text"],category:["Category","select",["Analysis","Reporting","Intel","Strategy","Coordination","Learning","Admin"]],priority:["Priority","select",["P1","P2","P3"]],effort:["Effort","text"],output:["Result / evidence","text"],status:["Status","select",["Not Started","In Progress","Done","Blocked"]],xp_reward:["XP","number"],is_boss:["Boss fight?","select",["0","1"]]}},
 initiatives:{t:"Initiative",cols:["title","owner","deadline","status","risk","next_date"],fields:{title:["Initiative","text"],objective:["Strategic objective","text"],owner:["Owner","text"],deadline:["Deadline","date"],status:["Status","select",["Not Started","On Track","At Risk","Delayed","Completed","On Hold"]],risk:["Risk","select",["Green","Amber","Red"]],last_update:["Last update","text"],next_action:["Next action","text"],next_date:["Next action date","date"],escalation:["Escalation?","select",["No","Yes"]]}},
 opportunities:{t:"Opportunity",cols:["title","value","feasibility","fit","status","owner"],fields:{title:["Title","text"],segment:["Segment / market","text"],evidence:["Evidence","textarea"],value:["Potential value","select",["High","Medium","Low"]],feasibility:["Feasibility","select",["High","Medium","Low"]],fit:["Strategic fit","select",["High","Medium","Low"]],owner:["Owner","text"],status:["Stage","select",["Idea","Research","Validate","Business Case","Pilot","Scale","Rejected"]],next_step:["Next validation step","text"],source:["Source","text"]}},
@@ -38,6 +38,8 @@ async function resetDemo(){if(!confirm("Reset ALL data to fresh demo data? Your 
 if(MODE==="api"){try{await POST("/api/reset",{});await load();renderNav();render();toast("Fresh demo data loaded.");}catch(e){toast("Reset failed: "+e.message);}}
 else{try{localStorage.removeItem(LS);}catch(e){}location.reload();}}
 function go(r){S.route=r;renderNav();render();}
+const SHORT={"Gross Written Premium (NGN bn)":"Motor","Target Achievement %":"Target","YoY Premium Growth %":"YoY Growth","Claims Ratio %":"Claims","Renewal Retention %":"Retention","New Business (NGN m)":"New Biz","Loss Ratio %":"Loss Ratio","Receivables >90d (NGN m)":"Receivables"};
+const short=r=>{const s=((r||{}).short||"").trim();if(s)return s.slice(0,14);if(SHORT[r.metric])return SHORT[r.metric];return r.metric.split("(")[0].replace("%","").trim().replace(/\s+/g," ").slice(0,14);};
 function pill(v){return `<span class="pill ${esc(String(v).replace(/ /g,"."))}">${esc(v||"—")}</span>`;}
 function num(v){const n=Number(v);return isFinite(n)?n.toLocaleString():"—";}
 
@@ -247,10 +249,10 @@ else if(R==="xp")v.innerHTML=vXP();
 else if(R==="templates")v.innerHTML=vTemplates();
 else if(R==="settings")v.innerHTML=vSettings();
 if(F[R])paintRows(R);
-if(R==="command")hbars($("#ch1"),S.D.kpis.map(k=>({label:k.metric.split("(")[0].trim(),value:k.variance_pct,color:stc(k.status)})),{ref:0,suffix:"%"});
+if(R==="command")hbars($("#ch1"),S.D.kpis.map(k=>({label:short(k),value:k.variance_pct,color:stc(k.status)})).sort((a,b)=>a.value-b.value),{ref:0,suffix:"%"});
 if(R==="kpis"){const k=(S.T.kpis||[]).filter(r=>rowMatch("kpis",r)).slice(0,10);
-hbars($("#chK"),k.map(x=>{const t=+x.target||0;return{label:x.metric.split("(")[0].trim(),value:t?+((+x.actual/t*100).toFixed(1)):null,color:stc(x.status)};}).filter(o=>o.value!=null),{ref:100,suffix:"%"});
-hbars($("#chV"),k.map(x=>{const a=+x.actual||0,t=+x.target||1;return{label:x.metric.split("(")[0].trim(),value:+(((a-t)/t*100).toFixed(1)),color:stc(x.status)};}),{ref:0,suffix:"%"});}}
+hbars($("#chK"),k.map(x=>{const t=+x.target||0;return{label:short(x),value:t?+((+x.actual/t*100).toFixed(1)):null,color:stc(x.status)};}).filter(o=>o.value!=null),{ref:100,suffix:"%"});
+hbars($("#chV"),k.map(x=>{const a=+x.actual||0,t=+x.target||1;return{label:short(x),value:+(((a-t)/t*100).toFixed(1)),color:stc(x.status)};}),{ref:0,suffix:"%"});}}
 
 /* ---------- canvas charts (no deps) ---------- */
 function setup(cv,h){const d=devicePixelRatio||1,w=cv.clientWidth||600,H=h||180;cv.width=w*d;cv.height=H*d;cv.style.height=H+"px";const c=cv.getContext("2d");c.scale(d,d);return[c,w,H];}
@@ -261,7 +263,7 @@ if(/off-track|Delayed|Red/.test(v))return d?"#f85149":"#cf222e";return TH().tgt;
 function hbars(cv,items,o){o=o||{};if(!cv)return;const n=items.length,RH=30,H=n*RH+12,[c,W]=setup(cv,H);c.clearRect(0,0,W,H);
 if(!n){c.fillStyle=TH().t;c.fillText("No data",10,20);return;}
 const vals=items.map(i=>i.value),lo=Math.min(0,...vals),mx0=Math.max(0,...vals.concat([o.ref||0])),hi=mx0===lo?lo+1:mx0*1.08;
-const LW=168,RW=64,X=v=>LW+(v-lo)/(hi-lo)*(W-LW-RW);
+const LW=120,RW=64,X=v=>LW+(v-lo)/(hi-lo)*(W-LW-RW);
 c.font="12px sans-serif";
 items.forEach((it,i)=>{const y=i*RH+5,x0=X(0),x1=X(it.value);
 c.strokeStyle=TH().grid;c.globalAlpha=.4;c.beginPath();c.moveTo(0,y+RH-6);c.lineTo(W,y+RH-6);c.stroke();c.globalAlpha=1;

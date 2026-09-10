@@ -60,6 +60,11 @@ try:
         check("api: charts drawn", pg.locator("canvas.chart").count() == 2)
         check("api: chart fits rows", pg.evaluate(
             "document.querySelector('#chK').getBoundingClientRect().height") == 8 * 30 + 12)
+        check("api: short labels", pg.evaluate(
+            "short({metric:'Gross Written Premium (NGN bn)'})") == "Motor"
+            and pg.evaluate("short({metric:'Receivables >90d (NGN m)'})") == "Receivables"
+            and pg.evaluate("short({metric:'Anything',short:'Custom Name'})") == "Custom Name"
+            and len(pg.evaluate("short({metric:'Some Extremely Long Custom Metric Name (%)'})")) <= 14)
         pg.screenshot(path=os.path.join(SHOTS, "api-kpis.png"))
         # Insight builder -> creates insight + awards 25 XP
         pg.click("text=+ Insight builder")

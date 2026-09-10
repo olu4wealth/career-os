@@ -30,7 +30,7 @@ STATIC = os.path.join(BUNDLE, "docs")
 SCHEMA = {
     "kpis": ["id", "period", "metric", "category", "actual", "target",
              "prior_period", "prior_year", "driver", "implication",
-             "action", "owner", "status"],
+             "action", "owner", "status", "short"],
     "tasks": ["id", "date", "title", "category", "priority", "status",
               "effort", "output", "xp_reward", "is_boss"],
     "initiatives": ["id", "title", "objective", "owner", "deadline",
@@ -92,6 +92,9 @@ def init_db():
             defs.append(f'"{col}" TEXT')
         c.execute(f'CREATE TABLE IF NOT EXISTS "{table}" ({", ".join(defs)})')
     con.commit()
+    if "short" not in [r[1] for r in c.execute("PRAGMA table_info(kpis)").fetchall()]:
+        c.execute('ALTER TABLE kpis ADD COLUMN "short" TEXT')
+        con.commit()
     if c.execute('SELECT COUNT(*) FROM kpis').fetchone()[0] == 0:
         seed(c)
         con.commit()
@@ -103,30 +106,30 @@ def seed(c):
     kpis = [
         ("2026-09", "Gross Written Premium (NGN bn)", "Premium", 5.2, 5.8, 5.0, 4.6,
          "Motor renewals -9% vs target; 2 corporate accounts lapsed", "Recover lapsed accounts; push retail Motor",
-         "Escalate top-2 lapsed accounts to ED Commercial", "A. Bello", "off-track"),
+         "Escalate top-2 lapsed accounts to ED Commercial", "A. Bello", "off-track", "Motor"),
         ("2026-09", "Target Achievement %", "Premium", 89.7, 100, 94.0, 91.0,
          "Shortfall concentrated in Motor + Marine", "Weekly Motor war-room until >95%",
-         "Set Friday review with branch heads", "Self", "attention"),
+         "Set Friday review with branch heads", "Self", "attention", "Target"),
         ("2026-09", "YoY Premium Growth %", "Growth", 13.0, 15.0, 11.2, 0.0,
          "Retail (+18%) offsetting corporate softness", "Scale retail engine; defend corporate",
-         "Share retail playbook with regions", "Self", "attention"),
+         "Share retail playbook with regions", "Self", "attention", "YoY Growth"),
         ("2026-09", "Claims Ratio %", "Claims", 48.0, 45.0, 46.5, 44.0,
          "Motor claims frequency +6% (flood-related Q3)", "Review Motor pricing + excess levels",
-         "Request claims frequency split by branch", "Claims", "attention"),
+         "Request claims frequency split by branch", "Claims", "attention", "Claims"),
         ("2026-09", "Renewal Retention %", "Retention", 82.0, 87.0, 84.0, 80.0,
          "Price-driven churn in SME segment", "Save-team call list for at-risk renewals",
-         "Produce at-risk renewal list this week", "Retention", "off-track"),
+         "Produce at-risk renewal list this week", "Retention", "off-track", "Retention"),
         ("2026-09", "New Business (NGN m)", "Growth", 410, 380, 350, 290,
          "Bancassurance + Oil & Gas pipeline converting", "Double down on bancassurance leads",
-         "Document what is converting + why", "Growth", "on-track"),
+         "Document what is converting + why", "Growth", "on-track", "New Biz"),
         ("2026-09", "Loss Ratio %", "Profitability", 52.0, 50.0, 51.0, 49.0,
          "Within tolerance; watch Motor severity", "Monitor monthly",
-         "Add severity tracker to cockpit", "Finance", "attention"),
+         "Add severity tracker to cockpit", "Finance", "attention", "Loss Ratio"),
         ("2026-09", "Receivables >90d (NGN m)", "Finance", 620, 400, 580, 510,
          "2 brokers slow-paying since July", "Escalate to Credit Control + ED",
-         "Send escalation memo by Friday", "Credit", "off-track"),
+         "Send escalation memo by Friday", "Credit", "off-track", "Receivables"),
     ]
-    ins(c, "kpis", "period,metric,category,actual,target,prior_period,prior_year,driver,implication,action,owner,status", kpis)
+    ins(c, "kpis", "period,metric,category,actual,target,prior_period,prior_year,driver,implication,action,owner,status,short", kpis)
     tasks = [
         (today, "Determine why September Motor premium is below target; 3 recommendations", "Analysis", "P1", "Not Started", "2h", "", 25, 1),
         (today, "Morning intelligence scan: NAICOM circular + 2 competitor moves", "Intel", "P1", "Not Started", "15m", "", 5, 0),
